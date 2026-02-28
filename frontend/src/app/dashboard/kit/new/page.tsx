@@ -132,7 +132,7 @@ function CVView({ cv }: { cv: { summary: string; bullets: string[]; ats_notes?: 
           </ul>
         </div>
       )}
-      {(cv.ats_notes?.length ?? 0) > 0 && (
+      {cv.ats_notes && cv.ats_notes.length > 0 && (
         <div className="bg-brand-900/20 border border-brand-700/30 rounded-lg p-4">
           <h3 className="text-xs text-brand-400 uppercase tracking-wider mb-2">ATS tips</h3>
           <ul className="space-y-1">
