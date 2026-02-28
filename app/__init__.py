@@ -1,8 +1,10 @@
 from flask import Flask
+from flask_cors import CORS
 from dotenv import load_dotenv
 import os
 
 from .routes.health import bp as health_bp
+from .routes.auth import bp as auth_bp
 from .routes.credits import bp as credits_bp
 from .routes.stripe_webhook import bp as stripe_bp
 from .routes.attestation import bp as attest_bp
@@ -23,9 +25,16 @@ def create_app() -> Flask:
     app.config['APP_ENV'] = os.getenv('APP_ENV', 'development')
     app.config['DATABASE_URL'] = os.getenv('DATABASE_URL', 'sqlite:///careerforge.db')
 
+    # CORS — allow the frontend origin (set FRONTEND_URL in env, or allow all in dev)
+    frontend_url = os.getenv('FRONTEND_URL', '*')
+    CORS(app, origins=frontend_url, supports_credentials=True,
+         allow_headers=['Content-Type', 'Authorization'],
+         methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
+
     init_db(app.config['DATABASE_URL'])
 
     app.register_blueprint(health_bp)
+    app.register_blueprint(auth_bp)
     app.register_blueprint(credits_bp)
     app.register_blueprint(stripe_bp)
     app.register_blueprint(attest_bp)
