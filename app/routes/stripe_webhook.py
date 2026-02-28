@@ -60,6 +60,6 @@ def webhook():
             add_credits(sub_ref, credits, reason='stripe_subscription_credit', ref_type='stripe_invoice', ref_id=inv.get('id'))
 
     if event_id:
-        mark_stripe_event(event_id)
+        mark_stripe_event(event_id, event_type=etype or '')
 
     return jsonify({'ok': True})

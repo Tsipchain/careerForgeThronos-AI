@@ -1,0 +1,91 @@
+{
+  "name": "CareerForge – Flow A: Onboarding (Profile → Baseline Kit)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "careerforge/onboard",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Webhook: /n8n/onboard",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CAREERFORGE_API_URL }}/v1/profile/upsert",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $json.jwt }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Idempotency-Key", "value": "={{ $json.idempotency_key || $runIndex }}" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "profile", "value": "={{ $json.profile }}" }
+          ]
+        }
+      },
+      "name": "HTTP: POST /v1/profile/upsert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CAREERFORGE_API_URL }}/v1/kit/generate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $node['Webhook: /n8n/onboard'].json.jwt }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Idempotency-Key", "value": "=onboard-baseline-{{ $node['HTTP: POST /v1/profile/upsert'].json.profile_id }}" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "kit_kind", "value": "cv_only" },
+            { "name": "profile_id", "value": "={{ $node['HTTP: POST /v1/profile/upsert'].json.profile_id }}" }
+          ]
+        }
+      },
+      "name": "HTTP: POST /v1/kit/generate (baseline CV)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { profile_id: $node['HTTP: POST /v1/profile/upsert'].json.profile_id, kit_id: $node['HTTP: POST /v1/kit/generate (baseline CV)'].json.kit_id, attestation_txid: $node['HTTP: POST /v1/kit/generate (baseline CV)'].json.attestation.txid } }}"
+      },
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Webhook: /n8n/onboard": {
+      "main": [[{ "node": "HTTP: POST /v1/profile/upsert", "type": "main", "index": 0 }]]
+    },
+    "HTTP: POST /v1/profile/upsert": {
+      "main": [[{ "node": "HTTP: POST /v1/kit/generate (baseline CV)", "type": "main", "index": 0 }]]
+    },
+    "HTTP: POST /v1/kit/generate (baseline CV)": {
+      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+    }
+  }
+}

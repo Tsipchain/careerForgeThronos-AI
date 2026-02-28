@@ -1,0 +1,157 @@
+{
+  "name": "CareerForge – Flow B: New Job → Parse → ATS → Kit",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "careerforge/new-job",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Webhook: /n8n/new-job",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CAREERFORGE_API_URL }}/v1/job/ingest",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $json.jwt }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "job", "value": "={{ $json.job }}" }
+          ]
+        }
+      },
+      "name": "HTTP: POST /v1/job/ingest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CAREERFORGE_API_URL }}/v1/ats/score",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $node['Webhook: /n8n/new-job'].json.jwt }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "job_id", "value": "={{ $node['HTTP: POST /v1/job/ingest'].json.job_id }}" },
+            { "name": "cv_text", "value": "={{ $node['Webhook: /n8n/new-job'].json.cv_text }}" },
+            {
+              "name": "options",
+              "value": "={ \"ats_strict_mode\": true, \"return_keyword_map\": true }"
+            }
+          ]
+        }
+      },
+      "name": "HTTP: POST /v1/ats/score",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $node['HTTP: POST /v1/ats/score'].json.ats_score }}",
+              "operation": "largerEqual",
+              "value2": 60
+            }
+          ]
+        }
+      },
+      "name": "IF: ATS score >= 60?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CAREERFORGE_API_URL }}/v1/kit/generate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $node['Webhook: /n8n/new-job'].json.jwt }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Idempotency-Key", "value": "=kit-{{ $node['HTTP: POST /v1/job/ingest'].json.job_id }}" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "job_id", "value": "={{ $node['HTTP: POST /v1/job/ingest'].json.job_id }}" },
+            { "name": "kit_kind", "value": "full" }
+          ]
+        }
+      },
+      "name": "HTTP: POST /v1/kit/generate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "subject": "=ATS suggestions for {{ $node['HTTP: POST /v1/job/ingest'].json.parsed.title }}",
+        "message": "=Your CV scored {{ $node['HTTP: POST /v1/ats/score'].json.ats_score }}/100.\n\nMissing keywords: {{ $node['HTTP: POST /v1/ats/score'].json.missing_keywords.join(', ') }}\n\nRecommendations:\n{{ $node['HTTP: POST /v1/ats/score'].json.recommendations.join('\\n') }}"
+      },
+      "name": "Gmail: Draft ATS fix suggestions",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [1120, 420]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { job_id: $node['HTTP: POST /v1/job/ingest'].json.job_id, ats_score: $node['HTTP: POST /v1/ats/score'].json.ats_score, kit_id: $node['HTTP: POST /v1/kit/generate'].json.kit_id } }}"
+      },
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1340, 300]
+    }
+  ],
+  "connections": {
+    "Webhook: /n8n/new-job": {
+      "main": [[{ "node": "HTTP: POST /v1/job/ingest", "type": "main", "index": 0 }]]
+    },
+    "HTTP: POST /v1/job/ingest": {
+      "main": [[{ "node": "HTTP: POST /v1/ats/score", "type": "main", "index": 0 }]]
+    },
+    "HTTP: POST /v1/ats/score": {
+      "main": [[{ "node": "IF: ATS score >= 60?", "type": "main", "index": 0 }]]
+    },
+    "IF: ATS score >= 60?": {
+      "main": [
+        [{ "node": "HTTP: POST /v1/kit/generate", "type": "main", "index": 0 }],
+        [{ "node": "Gmail: Draft ATS fix suggestions", "type": "main", "index": 0 }]
+      ]
+    },
+    "HTTP: POST /v1/kit/generate": {
+      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+    }
+  }
+}
