@@ -35,7 +35,15 @@ export const api = {
 
   // Profile
   getProfile: () => req<{ data: unknown }>('GET', '/v1/profile'),
-  upsertProfile: (data: unknown) => req<unknown>('POST', '/v1/profile/upsert', data),
+  upsertProfile: (data: unknown) => req<unknown>('POST', '/v1/profile/upsert', { profile: data }),
+
+  // KYC
+  kycSubmit: (payload: unknown) =>
+    req<{ verification_id: number; status: string }>('POST', '/v1/kyc/submit', payload),
+  kycStatus: () =>
+    req<{ verified: boolean; bonus_received: boolean; balance: number }>('GET', '/v1/kyc/status'),
+  kycPoll: (verificationId: number) =>
+    req<{ verification_id: number; status: string; ai_score: number | null }>('GET', `/v1/kyc/poll/${verificationId}`),
 
   // Job
   parseJob: (raw_text: string, source: string = 'paste') =>
