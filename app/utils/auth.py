@@ -6,15 +6,32 @@ import jwt
 from flask import request, jsonify
 
 
-def _load_public_key_pem() -> str:
-    pem = os.getenv('JWT_PUBLIC_KEY_PEM', '')
-    if pem.strip():
-        return pem
-    path = os.getenv('JWT_PUBLIC_KEY_PATH', '')
-    if path:
-        with open(path, 'r', encoding='utf-8') as f:
-            return f.read()
-    raise RuntimeError('JWT public key not configured (JWT_PUBLIC_KEY_PEM or JWT_PUBLIC_KEY_PATH)')
+def _decode_token(token: str) -> Dict[str, Any]:
+    """Try HS256 (native CareerForge login) first, fall back to RS256 (Thronos SSO)."""
+    aud = os.getenv('JWT_AUDIENCE') or None
+    iss = os.getenv('JWT_ISSUER') or None
+    opts = {'require': ['exp', 'sub']}
+
+    secret = os.getenv('JWT_SECRET_KEY', '')
+    if secret:
+        try:
+            return jwt.decode(token, secret, algorithms=['HS256'],
+                              audience=aud, issuer=iss, options=opts)
+        except jwt.InvalidTokenError:
+            pass  # Not a native token, try RS256
+
+    # RS256 fallback (external Thronos SSO)
+    pem = os.getenv('JWT_PUBLIC_KEY_PEM', '').strip()
+    if not pem:
+        path = os.getenv('JWT_PUBLIC_KEY_PATH', '')
+        if path:
+            with open(path, 'r', encoding='utf-8') as f:
+                pem = f.read()
+    if not pem:
+        raise RuntimeError('No JWT secret or public key configured')
+
+    return jwt.decode(token, pem, algorithms=['RS256'],
+                      audience=aud, issuer=iss, options=opts)
 
 
 def require_auth(scopes_required=None):
@@ -29,15 +46,7 @@ def require_auth(scopes_required=None):
             token = auth.split(' ', 1)[1].strip()
 
             try:
-                public_key = _load_public_key_pem()
-                payload: Dict[str, Any] = jwt.decode(
-                    token,
-                    public_key,
-                    algorithms=['RS256'],
-                    audience=os.getenv('JWT_AUDIENCE', None),
-                    issuer=os.getenv('JWT_ISSUER', None),
-                    options={'require': ['exp', 'sub']}
-                )
+                payload: Dict[str, Any] = _decode_token(token)
             except Exception as e:
                 return jsonify({'error': 'invalid_token', 'detail': str(e)}), 401
 
@@ -49,6 +58,7 @@ def require_auth(scopes_required=None):
             request.thronos_user = {
                 'sub': payload.get('sub'),
                 'email': payload.get('email'),
+                'full_name': payload.get('full_name', ''),
                 'tenant_id': payload.get('tenant_id'),
                 'verifyid_verified': bool(payload.get('verifyid_verified', False)),
                 'scopes': list(token_scopes),

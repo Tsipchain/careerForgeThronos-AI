@@ -11,6 +11,17 @@ _DB_PATH: Optional[str] = None
 _SCHEMA_SQL = """
 PRAGMA journal_mode=WAL;
 
+CREATE TABLE IF NOT EXISTS auth_accounts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sub TEXT UNIQUE NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    full_name TEXT,
+    created_at INTEGER NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS auth_accounts_email_idx ON auth_accounts(email);
+
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     sub TEXT UNIQUE NOT NULL,
@@ -151,6 +162,59 @@ def _conn() -> sqlite3.Connection:
 
 def _iso(ts: int) -> str:
     return datetime.datetime.utcfromtimestamp(ts).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
+# ---------------------------------------------------------------------------
+# Auth accounts (CareerForge native login)
+# ---------------------------------------------------------------------------
+
+import hashlib
+import secrets as _secrets
+
+
+def _hash_password(password: str, salt: str) -> str:
+    return hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 260_000).hex()
+
+
+def create_account(email: str, password: str, full_name: str = '') -> Optional[Dict]:
+    """Create a new auth account. Returns account dict or None if email taken."""
+    now = int(time.time())
+    sub = 'cf_' + uuid.uuid4().hex
+    salt = _secrets.token_hex(16)
+    pw_hash = f"{salt}:{_hash_password(password, salt)}"
+    with _conn() as c:
+        try:
+            c.execute(
+                'INSERT INTO auth_accounts (sub, email, password_hash, full_name, created_at) VALUES (?,?,?,?,?)',
+                (sub, email.lower().strip(), pw_hash, full_name, now)
+            )
+            return {'sub': sub, 'email': email.lower().strip(), 'full_name': full_name}
+        except sqlite3.IntegrityError:
+            return None
+
+
+def verify_account(email: str, password: str) -> Optional[Dict]:
+    """Verify credentials. Returns account dict or None if invalid."""
+    with _conn() as c:
+        row = c.execute(
+            'SELECT sub, email, password_hash, full_name FROM auth_accounts WHERE email=?',
+            (email.lower().strip(),)
+        ).fetchone()
+    if not row:
+        return None
+    stored = row['password_hash']
+    salt, expected = stored.split(':', 1)
+    if not _secrets.compare_digest(_hash_password(password, salt), expected):
+        return None
+    return {'sub': row['sub'], 'email': row['email'], 'full_name': row['full_name']}
+
+
+def get_account_by_sub(sub: str) -> Optional[Dict]:
+    with _conn() as c:
+        row = c.execute(
+            'SELECT sub, email, full_name FROM auth_accounts WHERE sub=?', (sub,)
+        ).fetchone()
+    return dict(row) if row else None
 
 
 # ---------------------------------------------------------------------------
