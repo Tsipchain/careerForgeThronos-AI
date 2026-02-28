@@ -24,7 +24,8 @@ export default function AuthForm({ mode }: Props) {
         ? await api.register(email, password, fullName)
         : await api.login(email, password)
       saveToken(res.token)
-      router.push('/dashboard')
+      // New registrations go to onboarding; logins go directly to dashboard
+      router.push(mode === 'register' ? '/onboarding' : '/dashboard')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
