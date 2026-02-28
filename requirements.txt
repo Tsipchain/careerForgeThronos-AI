@@ -1,0 +1,9 @@
+Flask==3.0.3
+gunicorn==22.0.0
+python-dotenv==1.0.1
+requests==2.32.3
+ecdsa==0.19.0
+stripe==10.4.0
+pydantic==2.8.2
+PyJWT[crypto]==2.9.0
+cryptography==43.0.1
