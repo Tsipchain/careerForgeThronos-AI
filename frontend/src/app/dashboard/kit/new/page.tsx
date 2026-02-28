@@ -147,13 +147,13 @@ function CVView({ cv }: { cv: { summary: string; bullets: string[]; ats_notes?: 
 function InterviewView({ pack }: { pack: { technical_topics?: string[]; behavioral_questions?: string[] } }) {
   return (
     <div className="space-y-5">
-      {pack.technical_topics?.length > 0 && (
+      {pack.technical_topics && pack.technical_topics.length > 0 && (
         <div>
           <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-2">Technical topics to study</h3>
           <div className="flex flex-wrap gap-2">{pack.technical_topics.map(t => <span key={t} className="bg-gray-800 px-3 py-1 rounded-full text-xs text-gray-300">{t}</span>)}</div>
         </div>
       )}
-      {pack.behavioral_questions?.length > 0 && (
+      {pack.behavioral_questions && pack.behavioral_questions.length > 0 && (
         <div>
           <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-2">Behavioral questions</h3>
           <ul className="space-y-2">{pack.behavioral_questions.map((q, i) => <li key={i} className="text-gray-300 text-sm bg-gray-800 rounded-lg px-4 py-2">{q}</li>)}</ul>
