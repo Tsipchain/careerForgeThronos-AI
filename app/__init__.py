@@ -12,6 +12,7 @@ from .routes.job import bp as job_bp
 from .routes.ats import bp as ats_bp
 from .routes.interview import bp as interview_bp
 from .routes.outreach import bp as outreach_bp
+from .routes.verifyid_webhook import bp as verifyid_bp
 from .db.store import init_db
 
 
@@ -34,5 +35,6 @@ def create_app() -> Flask:
     app.register_blueprint(ats_bp)
     app.register_blueprint(interview_bp)
     app.register_blueprint(outreach_bp)
+    app.register_blueprint(verifyid_bp)
 
     return app
