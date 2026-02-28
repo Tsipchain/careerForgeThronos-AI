@@ -315,6 +315,16 @@ def list_kits(sub: str, limit: int = 25) -> List[Dict[str, Any]]:
 # Stripe events (dedup)
 # ---------------------------------------------------------------------------
 
+def has_free_pack(sub: str) -> bool:
+    """Return True if this user has already received the verifyid free pack."""
+    with _conn() as c:
+        row = c.execute(
+            "SELECT COUNT(*) AS cnt FROM credit_ledger WHERE sub=? AND reason='verifyid_free_pack'",
+            (sub,)
+        ).fetchone()
+        return bool(row and row['cnt'] > 0)
+
+
 def has_stripe_event(event_id: str) -> bool:
     with _conn() as c:
         row = c.execute('SELECT id FROM stripe_events WHERE id=?', (event_id,)).fetchone()
