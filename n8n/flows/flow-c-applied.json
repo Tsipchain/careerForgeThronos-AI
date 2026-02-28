@@ -1,0 +1,161 @@
+{
+  "name": "CareerForge – Flow C: Applied → Follow-up Cadence (Day 0/5/10/20)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "careerforge/applied",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Webhook: /n8n/applied",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CAREERFORGE_API_URL }}/v1/outreach/generate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $json.jwt }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "job_id", "value": "={{ $json.job_id }}" },
+            { "name": "profile_id", "value": "={{ $json.profile_id }}" },
+            { "name": "channel", "value": "email" },
+            { "name": "tone", "value": "balanced" },
+            { "name": "cadence_days", "value": "=[5, 10, 20]" }
+          ]
+        }
+      },
+      "name": "HTTP: POST /v1/outreach/generate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "subject": "={{ $node['HTTP: POST /v1/outreach/generate'].json.messages[0].subject }}",
+        "message": "={{ $node['HTTP: POST /v1/outreach/generate'].json.messages[0].body }}"
+      },
+      "name": "Gmail: Draft Day 0",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "days"
+      },
+      "name": "Wait: 5 days",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "subject": "={{ $node['HTTP: POST /v1/outreach/generate'].json.messages[1].subject }}",
+        "message": "={{ $node['HTTP: POST /v1/outreach/generate'].json.messages[1].body }}"
+      },
+      "name": "Gmail: Draft Day 5",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "days"
+      },
+      "name": "Wait: 5 more days",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "subject": "={{ $node['HTTP: POST /v1/outreach/generate'].json.messages[2].subject }}",
+        "message": "={{ $node['HTTP: POST /v1/outreach/generate'].json.messages[2].body }}"
+      },
+      "name": "Gmail: Draft Day 10",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "amount": 10,
+        "unit": "days"
+      },
+      "name": "Wait: 10 more days",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [1780, 300]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "subject": "={{ $node['HTTP: POST /v1/outreach/generate'].json.messages[3] ? $node['HTTP: POST /v1/outreach/generate'].json.messages[3].subject : 'Final follow-up' }}",
+        "message": "={{ $node['HTTP: POST /v1/outreach/generate'].json.messages[3] ? $node['HTTP: POST /v1/outreach/generate'].json.messages[3].body : 'Final follow-up message.' }}"
+      },
+      "name": "Gmail: Draft Day 20",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [2000, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { status: 'cadence_started', job_id: $node['Webhook: /n8n/applied'].json.job_id, messages_scheduled: $node['HTTP: POST /v1/outreach/generate'].json.messages.length } }}"
+      },
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [680, 480]
+    }
+  ],
+  "connections": {
+    "Webhook: /n8n/applied": {
+      "main": [[{ "node": "HTTP: POST /v1/outreach/generate", "type": "main", "index": 0 }]]
+    },
+    "HTTP: POST /v1/outreach/generate": {
+      "main": [
+        [
+          { "node": "Gmail: Draft Day 0", "type": "main", "index": 0 },
+          { "node": "Respond to Webhook", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Gmail: Draft Day 0": {
+      "main": [[{ "node": "Wait: 5 days", "type": "main", "index": 0 }]]
+    },
+    "Wait: 5 days": {
+      "main": [[{ "node": "Gmail: Draft Day 5", "type": "main", "index": 0 }]]
+    },
+    "Gmail: Draft Day 5": {
+      "main": [[{ "node": "Wait: 5 more days", "type": "main", "index": 0 }]]
+    },
+    "Wait: 5 more days": {
+      "main": [[{ "node": "Gmail: Draft Day 10", "type": "main", "index": 0 }]]
+    },
+    "Gmail: Draft Day 10": {
+      "main": [[{ "node": "Wait: 10 more days", "type": "main", "index": 0 }]]
+    },
+    "Wait: 10 more days": {
+      "main": [[{ "node": "Gmail: Draft Day 20", "type": "main", "index": 0 }]]
+    }
+  }
+}

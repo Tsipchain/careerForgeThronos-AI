@@ -1,0 +1,102 @@
+{
+  "name": "CareerForge – Flow D: Inbox Replies → Classify → Pipeline Update",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [{ "mode": "everyMinute" }]
+        },
+        "filters": {
+          "labelIds": ["UNREAD"],
+          "q": "label:Recruiting"
+        }
+      },
+      "name": "Gmail Trigger: Inbox",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.subject.toLowerCase() }}",
+              "operation": "contains",
+              "value2": "interview"
+            }
+          ]
+        }
+      },
+      "name": "IF: Contains 'interview'?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CAREERFORGE_API_URL }}/v1/interview/prepare",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.CAREERFORGE_SERVICE_JWT }}"
+            },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "job_id", "value": "={{ $json.threadId }}" },
+            { "name": "company_context", "value": "={{ { company: $json.from } }}" }
+          ]
+        }
+      },
+      "name": "HTTP: Trigger interview prep",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [680, 200]
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $json.id }}",
+        "labelIds": ["Label_interview_scheduled"]
+      },
+      "name": "Gmail: Label as interview",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $json.id }}",
+        "labelIds": ["Label_recruiting_reply"]
+      },
+      "name": "Gmail: Label as recruiting reply",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [680, 420]
+    }
+  ],
+  "connections": {
+    "Gmail Trigger: Inbox": {
+      "main": [[{ "node": "IF: Contains 'interview'?", "type": "main", "index": 0 }]]
+    },
+    "IF: Contains 'interview'?": {
+      "main": [
+        [{ "node": "HTTP: Trigger interview prep", "type": "main", "index": 0 }],
+        [{ "node": "Gmail: Label as recruiting reply", "type": "main", "index": 0 }]
+      ]
+    },
+    "HTTP: Trigger interview prep": {
+      "main": [[{ "node": "Gmail: Label as interview", "type": "main", "index": 0 }]]
+    }
+  }
+}

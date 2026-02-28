@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://careerforge.thronoschain.org/schemas/job.v1.json",
+  "title": "CareerForgeJobV1",
+  "type": "object",
+  "required": ["source", "raw_text"],
+  "properties": {
+    "source": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string", "enum": ["url", "paste", "pdf_text"] },
+        "url": { "type": "string" }
+      }
+    },
+    "raw_text": { "type": "string", "minLength": 50 },
+    "parsed": {
+      "type": "object",
+      "properties": {
+        "company": { "type": "string" },
+        "title": { "type": "string" },
+        "location": { "type": "string" },
+        "employment_type": { "type": "string" },
+        "seniority": { "type": "string" },
+        "responsibilities": { "type": "array", "items": { "type": "string" } },
+        "requirements_must": { "type": "array", "items": { "type": "string" } },
+        "requirements_nice": { "type": "array", "items": { "type": "string" } },
+        "keywords": {
+          "type": "object",
+          "properties": {
+            "hard": { "type": "array", "items": { "type": "string" } },
+            "soft": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    }
+  }
+}

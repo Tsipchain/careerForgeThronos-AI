@@ -1,0 +1,108 @@
+{
+  "name": "CareerForge – Flow E: Interview Scheduled → Prep Pack + Reminders",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "careerforge/interview-scheduled",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Webhook: /n8n/interview-scheduled",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CAREERFORGE_API_URL }}/v1/interview/prepare",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $json.jwt }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "job_id", "value": "={{ $json.job_id }}" },
+            { "name": "profile_id", "value": "={{ $json.profile_id }}" },
+            {
+              "name": "company_context",
+              "value": "={{ { company: $json.company, domain: $json.domain || 'tech' } }}"
+            }
+          ]
+        }
+      },
+      "name": "HTTP: POST /v1/interview/prepare",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "subject": "=Interview Prep Pack – {{ $node['Webhook: /n8n/interview-scheduled'].json.company }}",
+        "message": "=Interview Prep Pack\n\nTechnical Topics:\n{{ $node['HTTP: POST /v1/interview/prepare'].json.interview_pack.technical_topics.join('\\n- ') }}\n\nBehavioral Questions:\n{{ $node['HTTP: POST /v1/interview/prepare'].json.interview_pack.behavioral_questions.join('\\n- ') }}\n\nQuestions to Ask:\n{{ $node['HTTP: POST /v1/interview/prepare'].json.interview_pack.questions_to_ask.join('\\n- ') }}"
+      },
+      "name": "Gmail: Draft prep pack",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "amount": 23,
+        "unit": "hours"
+      },
+      "name": "Wait: 24h before interview",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "subject": "=Reminder: Interview tomorrow – {{ $node['Webhook: /n8n/interview-scheduled'].json.company }}",
+        "message": "=Reminder: Your interview at {{ $node['Webhook: /n8n/interview-scheduled'].json.company }} is tomorrow.\n\nKey prep notes:\n- Review your STAR stories\n- Check technical topics in your prep pack\n- Prepare your questions"
+      },
+      "name": "Gmail: 24h reminder",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { status: 'prep_sent', job_id: $node['Webhook: /n8n/interview-scheduled'].json.job_id, credits_charged: $node['HTTP: POST /v1/interview/prepare'].json.credits_charged } }}"
+      },
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [680, 480]
+    }
+  ],
+  "connections": {
+    "Webhook: /n8n/interview-scheduled": {
+      "main": [[{ "node": "HTTP: POST /v1/interview/prepare", "type": "main", "index": 0 }]]
+    },
+    "HTTP: POST /v1/interview/prepare": {
+      "main": [
+        [
+          { "node": "Gmail: Draft prep pack", "type": "main", "index": 0 },
+          { "node": "Respond to Webhook", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Gmail: Draft prep pack": {
+      "main": [[{ "node": "Wait: 24h before interview", "type": "main", "index": 0 }]]
+    },
+    "Wait: 24h before interview": {
+      "main": [[{ "node": "Gmail: 24h reminder", "type": "main", "index": 0 }]]
+    }
+  }
+}
