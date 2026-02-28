@@ -25,9 +25,16 @@ def create_app() -> Flask:
     app.config['APP_ENV'] = os.getenv('APP_ENV', 'development')
     app.config['DATABASE_URL'] = os.getenv('DATABASE_URL', 'sqlite:///careerforge.db')
 
-    # CORS — allow the frontend origin (set FRONTEND_URL in env, or allow all in dev)
-    frontend_url = os.getenv('FRONTEND_URL', '*')
-    CORS(app, origins=frontend_url, supports_credentials=True,
+    # CORS — allow the frontend origin (set FRONTEND_URL in env, or use defaults)
+    default_origins = [
+        'https://careerforge-ai.thronoschain.org',
+        'https://careerforgethronos-ai.up.railway.app',
+        'http://localhost:3000',
+        'http://localhost:8080',
+    ]
+    raw = os.getenv('FRONTEND_URL', '')
+    cors_origins = [o.strip() for o in raw.split(',') if o.strip()] if raw.strip() else default_origins
+    CORS(app, origins=cors_origins, supports_credentials=True,
          allow_headers=['Content-Type', 'Authorization'],
          methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 
