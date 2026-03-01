@@ -192,6 +192,115 @@ def generate_outreach(profile: Dict, job: Dict, channel: str,
 
 
 # ---------------------------------------------------------------------------
+# CV analysis (TalentOS-style: strengths, weaknesses, ATS, improvements)
+# ---------------------------------------------------------------------------
+
+def analyze_cv(cv_text: str, options: Optional[Dict] = None) -> Dict:
+    """Analyse a plain-text CV and return structured insights."""
+    opts = options or {}
+    if _base():
+        return _post('/v1/cv/analyze', {'cv_text': cv_text, 'options': opts})
+
+    # Stub — heuristic analysis without LLM
+    words = cv_text.split()
+    word_count = len(words)
+
+    # Detect common CV sections
+    sections_found = []
+    for sec in ['education', 'experience', 'skills', 'summary', 'objective',
+                 'certifications', 'projects', 'languages', 'awards']:
+        if sec in cv_text.lower():
+            sections_found.append(sec)
+
+    # Detect hard skills present
+    tech_kws: List[str] = []
+    for kw in ['Python', 'JavaScript', 'TypeScript', 'Java', 'Go', 'Rust',
+                'React', 'Node.js', 'Flask', 'Django', 'FastAPI',
+                'PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'Kafka',
+                'Docker', 'Kubernetes', 'AWS', 'GCP', 'Azure',
+                'CI/CD', 'Git', 'REST', 'GraphQL', 'Machine Learning', 'TensorFlow']:
+        if kw.lower() in cv_text.lower():
+            tech_kws.append(kw)
+
+    # Basic ATS score heuristic
+    has_quantification = any(c.isdigit() for c in cv_text)
+    has_action_verbs = any(v in cv_text.lower() for v in [
+        'led', 'built', 'designed', 'implemented', 'reduced', 'increased',
+        'delivered', 'managed', 'launched', 'developed', 'owned',
+    ])
+    ats_base = 50
+    if 'experience' in sections_found:
+        ats_base += 10
+    if 'skills' in sections_found:
+        ats_base += 10
+    if has_quantification:
+        ats_base += 15
+    if has_action_verbs:
+        ats_base += 10
+    if len(tech_kws) >= 5:
+        ats_base += 5
+    ats_base = min(ats_base, 99)
+
+    strengths = []
+    weaknesses = []
+    improvements = []
+
+    if has_quantification:
+        strengths.append('Includes quantified achievements — strong ATS signal.')
+    else:
+        weaknesses.append('No measurable results found — add metrics (%, $, users, speed).')
+        improvements.append('Quantify at least 3 achievements with numbers or percentages.')
+
+    if has_action_verbs:
+        strengths.append('Uses strong action verbs (led, built, reduced…).')
+    else:
+        weaknesses.append('Bullet points lack action verbs.')
+        improvements.append('Start each bullet with a strong action verb.')
+
+    if len(tech_kws) >= 3:
+        strengths.append(f'Visible technical stack: {", ".join(tech_kws[:6])}.')
+    else:
+        weaknesses.append('Technical skills section is sparse or missing.')
+        improvements.append('Add a dedicated Skills section listing tools and technologies.')
+
+    if 'experience' not in sections_found:
+        weaknesses.append('No Experience section detected — ensure it is clearly labelled.')
+    if 'education' not in sections_found:
+        weaknesses.append('No Education section detected.')
+
+    if word_count < 200:
+        weaknesses.append(f'CV seems short ({word_count} words). Consider expanding.')
+    elif word_count > 1200:
+        weaknesses.append(f'CV may be too long ({word_count} words). Aim for 600–900 words.')
+    else:
+        strengths.append(f'CV length is appropriate ({word_count} words).')
+
+    name_guess = ''
+    for line in cv_text.splitlines()[:5]:
+        line = line.strip()
+        parts = line.split()
+        if 2 <= len(parts) <= 4 and all(p[0].isupper() for p in parts if p):
+            name_guess = line
+            break
+
+    return {
+        'candidate_name': name_guess,
+        'summary': (
+            f"CV analysed: {word_count} words, {len(sections_found)} sections detected "
+            f"({', '.join(sections_found) or 'none labelled'}). "
+            f"ATS readiness score: {ats_base}/100."
+        ),
+        'ats_score': ats_base,
+        'strengths': strengths or ['Shows relevant experience.'],
+        'weaknesses': weaknesses or ['Minor formatting improvements possible.'],
+        'improvements': improvements or ['Mirror keywords from each target job description.'],
+        'detected_skills': tech_kws,
+        'sections_found': sections_found,
+        'word_count': word_count,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Job parsing
 # ---------------------------------------------------------------------------
 
