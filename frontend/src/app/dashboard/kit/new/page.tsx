@@ -1,6 +1,6 @@
 'use client'
-import { useState } from 'react'
-import { api } from '@/lib/api'
+import { useState, useRef } from 'react'
+import { api, parseCvPdf } from '@/lib/api'
 
 type KitKind = 'full' | 'cv_only' | 'ats_only'
 
@@ -218,6 +218,27 @@ export default function NewKitPage() {
   const [result, setResult] = useState<KitResult | null>(null)
   const [error, setError] = useState('')
   const [progress, setProgress] = useState('')
+  const [pdfLoading, setPdfLoading] = useState(false)
+  const [pdfInfo, setPdfInfo] = useState<{ pages: number; word_count: number } | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  async function handlePdfUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setPdfLoading(true)
+    setPdfInfo(null)
+    try {
+      const res = await parseCvPdf(file)
+      setCvText(res.text)
+      setPdfInfo({ pages: res.pages, word_count: res.word_count })
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'PDF extraction failed')
+    } finally {
+      setPdfLoading(false)
+      // reset so same file can be re-uploaded
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
 
   async function generate() {
     if (!jobText.trim()) { setError('Paste a job description to continue.'); return }
@@ -280,12 +301,55 @@ export default function NewKitPage() {
 
       {/* CV */}
       <div className="mb-6">
-        <label className="block text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">
-          Your CV / experience <span className="text-gray-600 normal-case font-normal">(optional — improves results)</span>
-        </label>
+        <div className="flex items-center justify-between mb-2">
+          <label className="block text-xs font-semibold text-gray-400 uppercase tracking-widest">
+            Your CV / experience <span className="text-gray-600 normal-case font-normal">(optional — improves results)</span>
+          </label>
+          {/* Hidden file input */}
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".pdf"
+            className="hidden"
+            onChange={handlePdfUpload}
+          />
+          {/* Attach PDF button */}
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={pdfLoading}
+            className="flex items-center gap-1.5 text-xs font-medium text-brand-400 hover:text-brand-300 bg-brand-950/40 hover:bg-brand-950/60 border border-brand-800/40 hover:border-brand-700/60 px-3 py-1.5 rounded-lg transition-all disabled:opacity-60"
+          >
+            {pdfLoading ? (
+              <>
+                <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Extracting…
+              </>
+            ) : (
+              <>
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
+                Attach PDF
+              </>
+            )}
+          </button>
+        </div>
+        {/* Success badge after extraction */}
+        {pdfInfo && (
+          <div className="flex items-center gap-1.5 mb-2 text-xs text-green-400">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+            </svg>
+            PDF extracted — {pdfInfo.pages} {pdfInfo.pages === 1 ? 'page' : 'pages'} · {pdfInfo.word_count.toLocaleString()} words
+          </div>
+        )}
         <textarea
           value={cvText}
-          onChange={e => setCvText(e.target.value)}
+          onChange={e => { setCvText(e.target.value); if (pdfInfo) setPdfInfo(null) }}
           rows={5}
           className="input resize-none leading-relaxed"
           placeholder="Paste your current CV or describe your experience, skills, and achievements…"
