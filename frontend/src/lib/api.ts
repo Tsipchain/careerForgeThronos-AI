@@ -90,6 +90,12 @@ export const api = {
   ingestRemoteOkJob: (slug: string) =>
     req<{ job_id: string; parsed: unknown }>('POST', '/v1/job/remoteok/ingest', { slug }),
 
+  // Country context
+  getCountryContext: (country: string) =>
+    req<CountryContext>('GET', `/v1/job/country-context?country=${encodeURIComponent(country)}`),
+  listCountries: () =>
+    req<{ countries: CountrySummary[] }>('GET', '/v1/job/countries'),
+
   // Interview
   prepareInterview: (job_id: string, company_context?: unknown) =>
     req<{ interview_pack: unknown; credits_charged: number }>(
@@ -129,4 +135,37 @@ export interface RemoteOkJob {
   url: string
   posted_at: string
   logo: string
+}
+
+export interface CountrySummary {
+  code: string
+  name: string
+  flag: string
+  region: string
+  cost_of_living_index: number
+  income_tax_top_pct: number
+  digital_nomad_visa: boolean
+}
+
+export interface CountryContext {
+  name: string
+  flag: string
+  region: string
+  currency: string
+  official_languages: string[]
+  timezone: string
+  cost_of_living_index: number
+  avg_tech_salary_usd: { junior: string; mid: string; senior: string }
+  income_tax_top_pct: number
+  social_security_employer_pct: number
+  social_security_employee_pct: number
+  healthcare: string
+  contract_types_common: string[]
+  b2b_contractor_notes: string
+  digital_nomad_visa: boolean
+  eu_citizen_right_to_work: boolean
+  non_eu_work_permit: string
+  remote_work_culture: string
+  key_facts: string[]
+  quality_of_life: string
 }
