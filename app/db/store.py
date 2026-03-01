@@ -130,6 +130,44 @@ CREATE TABLE IF NOT EXISTS audits (
     details_json TEXT,
     created_at INTEGER NOT NULL
 );
+
+-- CV analysis results uploaded by users
+CREATE TABLE IF NOT EXISTS cv_analyses (
+    id TEXT PRIMARY KEY,
+    sub TEXT NOT NULL,
+    filename TEXT,
+    raw_text TEXT NOT NULL,
+    analysis_json TEXT,
+    ats_score INTEGER,
+    artifact_sha256 TEXT,
+    attestation_txid TEXT,
+    credits_charged INTEGER NOT NULL DEFAULT 2,
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY (sub) REFERENCES users(sub) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS cv_analyses_sub_idx ON cv_analyses(sub, created_at DESC);
+
+-- Employer/recruiter accounts
+CREATE TABLE IF NOT EXISTS employers (
+    id TEXT PRIMARY KEY,
+    sub TEXT NOT NULL,
+    company_name TEXT NOT NULL,
+    verified INTEGER DEFAULT 0,
+    credit_balance INTEGER DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY (sub) REFERENCES users(sub) ON DELETE CASCADE
+);
+
+-- Controls whether a candidate appears in recruiter search
+CREATE TABLE IF NOT EXISTS candidate_visibility (
+    sub TEXT PRIMARY KEY,
+    visible INTEGER DEFAULT 0,
+    desired_roles_json TEXT,
+    desired_locations_json TEXT,
+    keywords_json TEXT,
+    updated_at INTEGER NOT NULL
+);
 """
 
 
@@ -420,3 +458,163 @@ def write_audit(tenant_id: str, actor_sub: Optional[str], action: str,
             (tenant_id, actor_sub, action, target_type, target_id,
              json.dumps(details, ensure_ascii=False) if details else None, now)
         )
+
+
+# ---------------------------------------------------------------------------
+# CV Analyses
+# ---------------------------------------------------------------------------
+
+def save_cv_analysis(
+    analysis_id: str, sub: str, filename: str, raw_text: str,
+    analysis: Dict[str, Any], ats_score_val: int,
+    artifact_sha256: str, attestation_txid: Optional[str],
+    credits_charged: int,
+) -> Dict[str, Any]:
+    now = int(time.time())
+    with _conn() as c:
+        c.execute(
+            '''INSERT OR REPLACE INTO cv_analyses
+               (id, sub, filename, raw_text, analysis_json, ats_score,
+                artifact_sha256, attestation_txid, credits_charged, created_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?)''',
+            (analysis_id, sub, filename, raw_text,
+             json.dumps(analysis, ensure_ascii=False), ats_score_val,
+             artifact_sha256, attestation_txid, credits_charged, now)
+        )
+    return {'analysis_id': analysis_id, 'created_at': _iso(now)}
+
+
+def list_cv_analyses(sub: str, limit: int = 20) -> List[Dict[str, Any]]:
+    with _conn() as c:
+        rows = c.execute(
+            'SELECT id, sub, filename, ats_score, credits_charged, created_at '
+            'FROM cv_analyses WHERE sub=? ORDER BY created_at DESC LIMIT ?',
+            (sub, limit)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_cv_analysis(analysis_id: str, sub: str) -> Optional[Dict[str, Any]]:
+    with _conn() as c:
+        row = c.execute(
+            'SELECT * FROM cv_analyses WHERE id=? AND sub=?', (analysis_id, sub)
+        ).fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        d['analysis'] = json.loads(d.pop('analysis_json') or '{}')
+        return d
+
+
+# ---------------------------------------------------------------------------
+# Candidate visibility (opt-in recruiter pool)
+# ---------------------------------------------------------------------------
+
+def set_candidate_visibility(
+    sub: str, visible: bool,
+    desired_roles: Optional[List[str]] = None,
+    desired_locations: Optional[List[str]] = None,
+    keywords: Optional[List[str]] = None,
+) -> None:
+    now = int(time.time())
+    with _conn() as c:
+        c.execute(
+            '''INSERT INTO candidate_visibility
+               (sub, visible, desired_roles_json, desired_locations_json, keywords_json, updated_at)
+               VALUES (?,?,?,?,?,?)
+               ON CONFLICT(sub) DO UPDATE SET
+                 visible=excluded.visible,
+                 desired_roles_json=excluded.desired_roles_json,
+                 desired_locations_json=excluded.desired_locations_json,
+                 keywords_json=excluded.keywords_json,
+                 updated_at=excluded.updated_at''',
+            (sub, 1 if visible else 0,
+             json.dumps(desired_roles or [], ensure_ascii=False),
+             json.dumps(desired_locations or [], ensure_ascii=False),
+             json.dumps(keywords or [], ensure_ascii=False), now)
+        )
+
+
+def search_candidates(
+    role_query: str = '', location: str = '', limit: int = 20, offset: int = 0
+) -> List[Dict[str, Any]]:
+    """Return visible candidates whose profile matches the query."""
+    with _conn() as c:
+        rows = c.execute(
+            '''SELECT cv.sub, cv.visible, cv.desired_roles_json, cv.desired_locations_json,
+                      cv.keywords_json, u.email,
+                      p.data_json,
+                      (SELECT ats_score FROM cv_analyses WHERE sub=cv.sub ORDER BY created_at DESC LIMIT 1) AS latest_ats
+               FROM candidate_visibility cv
+               JOIN users u ON u.sub = cv.sub
+               LEFT JOIN profiles p ON p.sub = cv.sub
+               WHERE cv.visible = 1
+               ORDER BY latest_ats DESC NULLS LAST
+               LIMIT ? OFFSET ?''',
+            (limit, offset)
+        ).fetchall()
+
+    candidates = []
+    role_lower = role_query.lower()
+    loc_lower = location.lower()
+
+    for r in rows:
+        roles = json.loads(r['desired_roles_json'] or '[]')
+        locs = json.loads(r['desired_locations_json'] or '[]')
+        kwds = json.loads(r['keywords_json'] or '[]')
+        profile_data = json.loads(r['data_json'] or '{}') if r['data_json'] else {}
+        identity = profile_data.get('identity', {})
+
+        # Simple keyword match score
+        match_score = 100
+        if role_lower:
+            role_match = any(role_lower in role.lower() for role in roles) or \
+                         any(role_lower in kw.lower() for kw in kwds)
+            if not role_match:
+                match_score -= 40
+        if loc_lower:
+            loc_match = any(loc_lower in loc.lower() for loc in locs)
+            if not loc_match:
+                match_score -= 30
+        if match_score <= 0:
+            continue
+
+        candidates.append({
+            'sub': r['sub'],
+            'name': identity.get('full_name', 'Anonymous'),
+            'title': identity.get('current_title', ''),
+            'location': identity.get('location', ''),
+            'desired_roles': roles,
+            'desired_locations': locs,
+            'keywords': kwds,
+            'latest_ats_score': r['latest_ats'],
+            'match_score': match_score,
+        })
+
+    return sorted(candidates, key=lambda x: x['match_score'], reverse=True)
+
+
+# ---------------------------------------------------------------------------
+# GDPR: hard-delete all user data
+# ---------------------------------------------------------------------------
+
+def delete_user_data(sub: str) -> Dict[str, Any]:
+    """Remove all PII and generated content for a user. Keeps audit trail rows."""
+    with _conn() as c:
+        tables = [
+            'cv_analyses', 'candidate_visibility', 'profiles', 'jobs',
+            'kits', 'artifacts', 'applications', 'credit_ledger',
+        ]
+        deleted: Dict[str, int] = {}
+        for tbl in tables:
+            cur = c.execute(f'DELETE FROM {tbl} WHERE sub=?', (sub,))
+            deleted[tbl] = cur.rowcount
+        # Anonymise auth account — keep row for dedup but wipe PII
+        c.execute(
+            "UPDATE auth_accounts SET email='[deleted]@deleted', full_name='[deleted]', password_hash='[deleted]' WHERE sub=?",
+            (sub,)
+        )
+        c.execute(
+            "UPDATE users SET email='[deleted]@deleted' WHERE sub=?", (sub,)
+        )
+    return {'deleted_rows': deleted}

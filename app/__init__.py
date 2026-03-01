@@ -17,6 +17,8 @@ from .routes.outreach import bp as outreach_bp
 from .routes.verifyid_webhook import bp as verifyid_bp
 from .routes.kyc import bp as kyc_bp
 from .routes.n8n import bp as n8n_bp
+from .routes.cv import bp as cv_bp
+from .routes.candidates import bp as candidates_bp
 from .db.store import init_db
 
 
@@ -56,5 +58,7 @@ def create_app() -> Flask:
     app.register_blueprint(verifyid_bp)
     app.register_blueprint(kyc_bp)
     app.register_blueprint(n8n_bp)
+    app.register_blueprint(cv_bp)
+    app.register_blueprint(candidates_bp)
 
     return app

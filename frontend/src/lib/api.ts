@@ -73,4 +73,60 @@ export const api = {
     req<{ ats_score: number; missing_keywords: string[]; recommendations: string[] }>(
       'POST', '/v1/ats/score', { cv_text, job_id }
     ),
+
+  // CV Analysis
+  analyzeCvText: (cv_text: string) =>
+    req<{ analysis_id: string; analysis: CvAnalysis; credits_charged: number; attestation: unknown }>(
+      'POST', '/v1/cv/analyze', { cv_text }
+    ),
+  listCvAnalyses: () => req<{ analyses: CvAnalysisMeta[] }>('GET', '/v1/cv/list'),
+  getCvAnalysis: (id: string) => req<CvAnalysis & { analysis_id: string }>('GET', `/v1/cv/${id}`),
+  setCvVisibility: (visible: boolean, desired_roles: string[], desired_locations: string[], keywords: string[]) =>
+    req<{ ok: boolean }>('POST', '/v1/cv/visibility', { visible, desired_roles, desired_locations, keywords }),
+
+  // RemoteOK jobs
+  listRemoteOkJobs: (tag?: string) =>
+    req<{ jobs: RemoteOkJob[]; count: number }>('GET', `/v1/job/remoteok${tag ? `?tag=${encodeURIComponent(tag)}` : ''}`),
+  ingestRemoteOkJob: (slug: string) =>
+    req<{ job_id: string; parsed: unknown }>('POST', '/v1/job/remoteok/ingest', { slug }),
+
+  // Interview
+  prepareInterview: (job_id: string, company_context?: unknown) =>
+    req<{ interview_pack: unknown; credits_charged: number }>(
+      'POST', '/v1/interview/prepare', { job_id, company_context: company_context || {} }
+    ),
+}
+
+// Types
+export interface CvAnalysis {
+  candidate_name: string
+  summary: string
+  ats_score: number
+  strengths: string[]
+  weaknesses: string[]
+  improvements: string[]
+  detected_skills: string[]
+  sections_found: string[]
+  word_count: number
+}
+
+export interface CvAnalysisMeta {
+  id: string
+  filename: string
+  ats_score: number
+  credits_charged: number
+  created_at: number
+}
+
+export interface RemoteOkJob {
+  remoteok_id: string
+  slug: string
+  title: string
+  company: string
+  location: string
+  salary: string
+  tags: string[]
+  url: string
+  posted_at: string
+  logo: string
 }
