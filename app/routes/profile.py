@@ -1,7 +1,9 @@
 """
-POST /v1/profile/upsert  — create/update Master Profile
-GET  /v1/profile         — retrieve current profile
+POST /v1/profile/upsert    — create/update Master Profile
+GET  /v1/profile           — retrieve current profile
+POST /v1/profile/parse-cv  — upload PDF, extract text for kit generation
 """
+import io
 from flask import Blueprint, jsonify, request
 
 from ..utils.auth import require_auth
@@ -69,3 +71,46 @@ def get():
     if not profile:
         return jsonify({'error': {'code': 'not_found', 'message': 'No profile found'}}), 404
     return jsonify(profile), 200
+
+
+@bp.post('/parse-cv')
+@require_auth(['careerforge:write'])
+def parse_cv():
+    """Accept a PDF CV upload and return extracted plain text.
+
+    The text is returned as-is so the frontend can pre-fill the
+    'Your CV / experience' textarea in the kit generation wizard.
+    Max file size: 5 MB.
+    """
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded. Send multipart/form-data with field "file".'}), 400
+
+    f = request.files['file']
+    if not f.filename or not f.filename.lower().endswith('.pdf'):
+        return jsonify({'error': 'Only PDF files are supported.'}), 400
+
+    raw = f.read()
+    if len(raw) > 5 * 1024 * 1024:
+        return jsonify({'error': 'File too large (max 5 MB).'}), 413
+
+    try:
+        import pdfplumber
+        with pdfplumber.open(io.BytesIO(raw)) as pdf:
+            pages = []
+            for page in pdf.pages:
+                text = page.extract_text()
+                if text:
+                    pages.append(text.strip())
+        extracted = '\n\n'.join(pages)
+    except Exception as e:
+        return jsonify({'error': f'PDF extraction failed: {e}'}), 422
+
+    if not extracted.strip():
+        return jsonify({'error': 'Could not extract text from this PDF. Try a text-based (non-scanned) PDF.'}), 422
+
+    word_count = len(extracted.split())
+    return jsonify({
+        'text': extracted,
+        'pages': len(pages),
+        'word_count': word_count,
+    })

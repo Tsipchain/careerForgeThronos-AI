@@ -5,6 +5,21 @@ function getToken(): string {
   return localStorage.getItem('cf_token') || ''
 }
 
+/** Upload a PDF file and return extracted CV text. */
+export async function parseCvPdf(file: File): Promise<{ text: string; pages: number; word_count: number }> {
+  const token = getToken()
+  const form = new FormData()
+  form.append('file', file)
+  const res = await fetch(`${BASE}/v1/profile/parse-cv`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+  return data
+}
+
 async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   const token = getToken()
