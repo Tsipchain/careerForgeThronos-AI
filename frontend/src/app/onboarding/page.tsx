@@ -51,7 +51,7 @@ function PsychStep({ onDone }: { onDone: () => void }) {
 
   useEffect(() => {
     api.onboardingQuestions()
-      .then((d: { questions: PsychQuestion[] }) => { setQuestions(d.questions); startTime.current = Date.now() })
+      .then((d) => { setQuestions(d.questions as PsychQuestion[]); startTime.current = Date.now() })
       .catch(() => setError('Failed to load questions'))
       .finally(() => setLoading(false))
   }, [])
