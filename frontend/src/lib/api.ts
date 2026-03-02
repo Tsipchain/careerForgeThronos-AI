@@ -139,9 +139,12 @@ export const api = {
 
   // Guarantee / 7-day promise
   guaranteeStatus: () =>
-    req<{ kit_count: number; days_active: number; eligible_for_refund: boolean; existing_request: unknown }>(
-      'GET', '/v1/guarantee/status'
-    ),
+    req<{
+      kit_count: number
+      days_active: number
+      eligible_for_refund: boolean
+      existing_request: { id: string; status: string; credits_refunded: number } | null
+    }>('GET', '/v1/guarantee/status'),
   guaranteeRequest: (reason?: string) =>
     req<{ request_id: string; status: string; message: string }>(
       'POST', '/v1/guarantee/request', { reason }
