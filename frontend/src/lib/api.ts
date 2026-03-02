@@ -104,18 +104,18 @@ export const api = {
 
   // Identity Verification
   verifyStart: () =>
-    req<{ session_id: string; channel: string; status: string; message: string }>('POST', '/v1/verify/start'),
+    req<{ session_id: string; channel: string; status: 'approved' | 'manager_review' | 'rejected' | 'pending'; message: string }>('POST', '/v1/verify/start'),
   verifyUpload: (body: {
     session_id: string
     doc_front: string
     doc_back?: string
     video?: string
     video_duration_s?: number
-  }) => req<{ session_id: string; status: string; fraud_score?: number; flags?: string[]; message?: string }>(
+  }) => req<{ session_id: string; status: 'approved' | 'manager_review' | 'rejected' | 'pending'; fraud_score?: number; flags?: string[]; message?: string }>(
     'POST', '/v1/verify/upload', body
   ),
   verifyStatus: () =>
-    req<{ status: string; session_id?: string; fraud_score?: number; channel?: string }>('GET', '/v1/verify/status'),
+    req<{ status: 'approved' | 'manager_review' | 'rejected' | 'pending' | 'none'; session_id?: string; fraud_score?: number; channel?: string }>('GET', '/v1/verify/status'),
 
   // Manager portal
   managerPending: () =>
