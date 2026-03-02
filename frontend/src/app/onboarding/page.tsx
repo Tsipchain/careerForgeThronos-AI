@@ -5,12 +5,13 @@ import Link from 'next/link'
 import { api } from '@/lib/api'
 import { isLoggedIn } from '@/lib/auth'
 
-type Step = 'kyc' | 'profile' | 'done'
+type Step = 'kyc' | 'psych' | 'profile' | 'done'
 
 // ── Step indicator ──────────────────────────────────────────────────────────
 function StepBar({ step }: { step: Step }) {
   const steps = [
     { id: 'kyc', label: 'Verify identity' },
+    { id: 'psych', label: 'Quick quiz' },
     { id: 'profile', label: 'Career profile' },
     { id: 'done', label: 'Claim bonus' },
   ] as const
@@ -33,6 +34,104 @@ function StepBar({ step }: { step: Step }) {
           )}
         </div>
       ))}
+    </div>
+  )
+}
+
+// ── Psychology/Anti-bot Step ─────────────────────────────────────────────────
+interface PsychQuestion { id: string; text: string; options: { value: string; label: string }[] }
+
+function PsychStep({ onDone }: { onDone: () => void }) {
+  const [questions, setQuestions] = useState<PsychQuestion[]>([])
+  const [answers, setAnswers] = useState<Record<string, string>>({})
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+  const startTime = useRef(Date.now())
+
+  useEffect(() => {
+    api.onboardingQuestions()
+      .then((d: { questions: PsychQuestion[] }) => { setQuestions(d.questions); startTime.current = Date.now() })
+      .catch(() => setError('Failed to load questions'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  async function submit() {
+    const duration_ms = Date.now() - startTime.current
+    const answerList = Object.entries(answers).map(([question_id, value]) => ({ question_id, value }))
+    setSubmitting(true)
+    setError('')
+    try {
+      const res = await api.onboardingSubmit(answerList, duration_ms)
+      if (res.passed) {
+        onDone()
+      } else {
+        setError('Please answer the questions carefully and try again.')
+        setAnswers({})
+        startTime.current = Date.now()
+      }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Submission failed')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const allAnswered = questions.length > 0 && questions.every(q => answers[q.id])
+
+  if (loading) return (
+    <div className="text-center py-10">
+      <svg className="w-6 h-6 text-brand-400 animate-spin mx-auto" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+      </svg>
+    </div>
+  )
+
+  return (
+    <div className="max-w-lg mx-auto">
+      <h2 className="text-2xl font-bold text-white mb-1">Quick personalisation quiz</h2>
+      <p className="text-gray-400 text-sm mb-6">5 short questions to set up your experience. There are no wrong answers.</p>
+
+      <div className="space-y-5">
+        {questions.map((q, idx) => (
+          <div key={q.id} className="space-y-2">
+            <p className="text-sm font-medium text-white">
+              <span className="text-brand-400 mr-1">{idx + 1}.</span>{q.text}
+            </p>
+            <div className="space-y-1.5">
+              {q.options.map(opt => {
+                const selected = answers[q.id] === opt.value
+                return (
+                  <button key={opt.value} type="button"
+                    onClick={() => setAnswers(prev => ({ ...prev, [q.id]: opt.value }))}
+                    className={`w-full text-left px-3 py-2.5 rounded-xl text-sm border transition-all ${
+                      selected
+                        ? 'border-brand-500 bg-brand-900/40 text-brand-200'
+                        : 'border-white/10 text-gray-400 hover:border-white/20 hover:text-white'
+                    }`}>
+                    <span className={`inline-block w-4 h-4 rounded-full border mr-2 text-[10px] text-center leading-4 align-middle ${
+                      selected ? 'bg-brand-500 border-brand-500 text-white' : 'border-gray-600'
+                    }`}>{selected ? '✓' : opt.value.toUpperCase()}</span>
+                    {opt.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {error && (
+        <div className="mt-4 bg-red-950/40 border border-red-800/50 rounded-xl px-4 py-2.5">
+          <p className="text-red-400 text-sm">{error}</p>
+        </div>
+      )}
+
+      <button onClick={submit} disabled={!allAnswered || submitting}
+        className="btn-primary w-full py-3 text-sm mt-5 disabled:opacity-50 disabled:cursor-not-allowed">
+        {submitting ? 'Submitting…' : 'Continue →'}
+      </button>
     </div>
   )
 }
@@ -351,8 +450,11 @@ export default function OnboardingPage() {
   }, [router])
 
   function onKycDone() {
-    // Fetch latest balance (bonus may have been granted via webhook)
     api.kycStatus().then(s => setBalance(s.balance)).catch(() => {})
+    setStep('psych')
+  }
+
+  function onPsychDone() {
     setStep('profile')
   }
 
@@ -371,13 +473,14 @@ export default function OnboardingPage() {
             <span className="text-gradient">Career</span>
             <span className="text-white">Forge</span>
           </Link>
-          <p className="text-gray-500 text-sm mt-1">Set up your account in 3 quick steps</p>
+          <p className="text-gray-500 text-sm mt-1">Set up your account in 4 quick steps</p>
         </div>
 
         <StepBar step={step} />
 
         <div className="card p-8">
           {step === 'kyc' && <KycStep onDone={onKycDone} />}
+          {step === 'psych' && <PsychStep onDone={onPsychDone} />}
           {step === 'profile' && <ProfileStep onDone={onProfileDone} />}
           {step === 'done' && <DoneStep balance={balance} />}
         </div>

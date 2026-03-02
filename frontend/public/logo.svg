@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <defs>
+    <!-- Main gradient: indigo → cyan -->
+    <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#818cf8"/>
+      <stop offset="50%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+    <!-- Inner glow -->
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#6366f1" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#6366f1" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Dark hex fill -->
+    <linearGradient id="gDark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1e1b4b"/>
+      <stop offset="100%" stop-color="#0c0a1a"/>
+    </linearGradient>
+    <!-- Arrow gradient -->
+    <linearGradient id="gArrow" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+    <!-- Circuit glow filter -->
+    <filter id="gf" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="sf" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Outer glow blob -->
+  <ellipse cx="100" cy="105" rx="72" ry="66" fill="url(#glow)"/>
+
+  <!-- Outer hexagon ring (gradient stroke) -->
+  <polygon
+    points="100,12 171,52 171,132 100,172 29,132 29,52"
+    fill="none"
+    stroke="url(#g1)"
+    stroke-width="3"
+    opacity="0.9"
+  />
+  <!-- Outer hex tick marks -->
+  <polygon
+    points="100,6 177,48 177,136 100,178 23,136 23,48"
+    fill="none"
+    stroke="url(#g1)"
+    stroke-width="1"
+    opacity="0.25"
+  />
+
+  <!-- Inner hex fill -->
+  <polygon
+    points="100,20 163,57 163,131 100,168 37,131 37,57"
+    fill="url(#gDark)"
+  />
+
+  <!-- ── Circuit nodes at hex corners ─────────────────────────── -->
+  <!-- Top -->
+  <circle cx="100" cy="20" r="3.5" fill="#6366f1" filter="url(#gf)" opacity="0.9"/>
+  <circle cx="100" cy="20" r="1.5" fill="#c7d2fe"/>
+  <!-- Top-right -->
+  <circle cx="163" cy="57" r="3.5" fill="#6366f1" filter="url(#gf)" opacity="0.9"/>
+  <circle cx="163" cy="57" r="1.5" fill="#c7d2fe"/>
+  <!-- Bottom-right -->
+  <circle cx="163" cy="131" r="3.5" fill="#22d3ee" filter="url(#gf)" opacity="0.9"/>
+  <circle cx="163" cy="131" r="1.5" fill="#a5f3fc"/>
+  <!-- Bottom -->
+  <circle cx="100" cy="168" r="3.5" fill="#22d3ee" filter="url(#gf)" opacity="0.9"/>
+  <circle cx="100" cy="168" r="1.5" fill="#a5f3fc"/>
+  <!-- Bottom-left -->
+  <circle cx="37" cy="131" r="3.5" fill="#22d3ee" filter="url(#gf)" opacity="0.9"/>
+  <circle cx="37" cy="131" r="1.5" fill="#a5f3fc"/>
+  <!-- Top-left -->
+  <circle cx="37" cy="57" r="3.5" fill="#6366f1" filter="url(#gf)" opacity="0.9"/>
+  <circle cx="37" cy="57" r="1.5" fill="#c7d2fe"/>
+
+  <!-- ── Horizontal circuit lines (thin, inside hex) ───────────── -->
+  <line x1="57" y1="94" x2="143" y2="94" stroke="#6366f1" stroke-width="0.8" opacity="0.35" stroke-dasharray="3 4"/>
+  <line x1="46" y1="110" x2="154" y2="110" stroke="#22d3ee" stroke-width="0.8" opacity="0.25" stroke-dasharray="3 5"/>
+
+  <!-- ── Blockchain cubes (bottom area) ────────────────────────── -->
+  <!-- Cube 1 — left -->
+  <g opacity="0.85">
+    <polygon points="68,148 80,141 80,155 68,162" fill="#3730a3" stroke="#6366f1" stroke-width="0.8"/>
+    <polygon points="68,148 80,141 92,148 80,155" fill="#4338ca" stroke="#6366f1" stroke-width="0.8"/>
+    <polygon points="80,155 92,148 92,162 80,169" fill="#312e81" stroke="#6366f1" stroke-width="0.8"/>
+    <!-- cube highlight -->
+    <line x1="80" y1="141" x2="80" y2="155" stroke="#818cf8" stroke-width="0.6" opacity="0.6"/>
+  </g>
+  <!-- Cube 2 — right -->
+  <g opacity="0.85">
+    <polygon points="108,148 120,141 120,155 108,162" fill="#164e63" stroke="#22d3ee" stroke-width="0.8"/>
+    <polygon points="108,148 120,141 132,148 120,155" fill="#0e7490" stroke="#22d3ee" stroke-width="0.8"/>
+    <polygon points="120,155 132,148 132,162 120,169" fill="#0c4a6e" stroke="#22d3ee" stroke-width="0.8"/>
+    <line x1="120" y1="141" x2="120" y2="155" stroke="#67e8f9" stroke-width="0.6" opacity="0.6"/>
+  </g>
+
+  <!-- ── Central upward arrow ───────────────────────────────────── -->
+  <!-- Arrow shaft -->
+  <rect x="96" y="72" width="8" height="52" rx="2" fill="url(#gArrow)" filter="url(#sf)" opacity="0.9"/>
+  <!-- Arrow head -->
+  <polygon
+    points="100,48 117,78 83,78"
+    fill="url(#gArrow)"
+    filter="url(#sf)"
+    opacity="0.95"
+  />
+  <!-- Arrow shaft bright overlay -->
+  <rect x="98.5" y="73" width="3" height="48" rx="1" fill="white" opacity="0.15"/>
+
+  <!-- ── Small circuit dots along shaft ─────────────────────────── -->
+  <circle cx="100" cy="90"  r="2" fill="#c7d2fe" opacity="0.7"/>
+  <circle cx="100" cy="104" r="2" fill="#a5f3fc" opacity="0.7"/>
+  <circle cx="100" cy="118" r="1.5" fill="#c7d2fe" opacity="0.5"/>
+
+  <!-- ── CF monogram (subtle, bottom-right of arrow area) ─────── -->
+  <!-- C -->
+  <path d="M83 132 Q78 126 78 120 Q78 114 83 108" stroke="url(#g1)" stroke-width="2.2" stroke-linecap="round" fill="none" opacity="0.7"/>
+  <!-- F -->
+  <line x1="89" y1="108" x2="89" y2="132" stroke="url(#g1)" stroke-width="2.2" stroke-linecap="round" opacity="0.7"/>
+  <line x1="89" y1="108" x2="98" y2="108" stroke="url(#g1)" stroke-width="2.2" stroke-linecap="round" opacity="0.7"/>
+  <line x1="89" y1="120" x2="96" y2="120" stroke="url(#g1)" stroke-width="1.8" stroke-linecap="round" opacity="0.7"/>
+</svg>

@@ -101,6 +101,51 @@ export const api = {
     req<{ interview_pack: unknown; credits_charged: number }>(
       'POST', '/v1/interview/prepare', { job_id, company_context: company_context || {} }
     ),
+
+  // Identity Verification
+  verifyStart: () =>
+    req<{ session_id: string; channel: string; status: string; message: string }>('POST', '/v1/verify/start'),
+  verifyUpload: (body: {
+    session_id: string
+    doc_front: string
+    doc_back?: string
+    video?: string
+    video_duration_s?: number
+  }) => req<{ session_id: string; status: string; fraud_score?: number; flags?: string[]; message?: string }>(
+    'POST', '/v1/verify/upload', body
+  ),
+  verifyStatus: () =>
+    req<{ status: string; session_id?: string; fraud_score?: number; channel?: string }>('GET', '/v1/verify/status'),
+
+  // Manager portal
+  managerPending: () =>
+    req<{ sessions: unknown[]; count: number }>('GET', '/v1/manager/pending'),
+  managerSessionDetail: (sessionId: string) =>
+    req<unknown>('GET', `/v1/manager/session/${sessionId}`),
+  managerReview: (sessionId: string, decision: 'approved' | 'rejected', note?: string) =>
+    req<{ session_id: string; decision: string; message: string }>(
+      'POST', `/v1/manager/session/${sessionId}/review`, { decision, note }
+    ),
+
+  // Psychology / Onboarding test
+  onboardingQuestions: () =>
+    req<{ questions: unknown[]; pass_threshold: number }>('GET', '/v1/onboarding/test/questions'),
+  onboardingSubmit: (answers: { question_id: string; value: string }[], duration_ms: number) =>
+    req<{ test_id: string; score: number; passed: boolean; message: string }>(
+      'POST', '/v1/onboarding/test/submit', { answers, duration_ms }
+    ),
+  onboardingStatus: () =>
+    req<{ passed: boolean; score?: number; message: string }>('GET', '/v1/onboarding/test/status'),
+
+  // Guarantee / 7-day promise
+  guaranteeStatus: () =>
+    req<{ kit_count: number; days_active: number; eligible_for_refund: boolean; existing_request: unknown }>(
+      'GET', '/v1/guarantee/status'
+    ),
+  guaranteeRequest: (reason?: string) =>
+    req<{ request_id: string; status: string; message: string }>(
+      'POST', '/v1/guarantee/request', { reason }
+    ),
 }
 
 // Types
