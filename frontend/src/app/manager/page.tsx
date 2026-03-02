@@ -54,7 +54,7 @@ export default function ManagerPortalPage() {
     setLoading(true)
     try {
       const data = await api.managerPending()
-      setSessions(data.sessions || [])
+      setSessions((data.sessions as Session[]) || [])
     } catch {
       setError('Failed to load pending sessions')
     } finally {
@@ -70,7 +70,7 @@ export default function ManagerPortalPage() {
     setError('')
     try {
       const detail = await api.managerSessionDetail(s.id)
-      setSelected(detail)
+      setSelected(detail as Session)
     } catch {
       setError('Failed to load session details')
     } finally {
