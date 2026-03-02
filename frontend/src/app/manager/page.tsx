@@ -1,22 +1,8 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { api } from '@/lib/api'
+import { api, ManagerSession as Session } from '@/lib/api'
 import { isLoggedIn } from '@/lib/auth'
-
-interface Session {
-  id: string
-  sub: string
-  status: string
-  channel: string
-  fraud_score?: number
-  fraud_flags?: string[]
-  video_duration_s?: number
-  created_at: number
-  user_email?: string
-  user_full_name?: string
-  manager_note?: string
-}
 
 function FraudBar({ score }: { score?: number }) {
   if (score === undefined) return <span className="text-gray-600 text-xs">N/A</span>

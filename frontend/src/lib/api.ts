@@ -119,9 +119,9 @@ export const api = {
 
   // Manager portal
   managerPending: () =>
-    req<{ sessions: unknown[]; count: number }>('GET', '/v1/manager/pending'),
+    req<{ sessions: ManagerSession[]; count: number }>('GET', '/v1/manager/pending'),
   managerSessionDetail: (sessionId: string) =>
-    req<unknown>('GET', `/v1/manager/session/${sessionId}`),
+    req<ManagerSession>('GET', `/v1/manager/session/${sessionId}`),
   managerReview: (sessionId: string, decision: 'approved' | 'rejected', note?: string) =>
     req<{ session_id: string; decision: string; message: string }>(
       'POST', `/v1/manager/session/${sessionId}/review`, { decision, note }
@@ -129,7 +129,7 @@ export const api = {
 
   // Psychology / Onboarding test
   onboardingQuestions: () =>
-    req<{ questions: unknown[]; pass_threshold: number }>('GET', '/v1/onboarding/test/questions'),
+    req<{ questions: OnboardingQuestion[]; pass_threshold: number }>('GET', '/v1/onboarding/test/questions'),
   onboardingSubmit: (answers: { question_id: string; value: string }[], duration_ms: number) =>
     req<{ test_id: string; score: number; passed: boolean; message: string }>(
       'POST', '/v1/onboarding/test/submit', { answers, duration_ms }
@@ -216,4 +216,24 @@ export interface CountryContext {
   remote_work_culture: string
   key_facts: string[]
   quality_of_life: string
+}
+
+export interface ManagerSession {
+  id: string
+  sub: string
+  status: string
+  channel: string
+  fraud_score?: number
+  fraud_flags?: string[]
+  video_duration_s?: number
+  created_at: number
+  user_email?: string
+  user_full_name?: string
+  manager_note?: string
+}
+
+export interface OnboardingQuestion {
+  id: string
+  text: string
+  options: { value: string; label: string }[]
 }

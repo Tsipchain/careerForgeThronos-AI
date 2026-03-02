@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { api } from '@/lib/api'
+import { api, OnboardingQuestion as PsychQuestion } from '@/lib/api'
 import { isLoggedIn } from '@/lib/auth'
 
 type Step = 'kyc' | 'psych' | 'profile' | 'done'
@@ -39,8 +39,6 @@ function StepBar({ step }: { step: Step }) {
 }
 
 // ── Psychology/Anti-bot Step ─────────────────────────────────────────────────
-interface PsychQuestion { id: string; text: string; options: { value: string; label: string }[] }
-
 function PsychStep({ onDone }: { onDone: () => void }) {
   const [questions, setQuestions] = useState<PsychQuestion[]>([])
   const [answers, setAnswers] = useState<Record<string, string>>({})
@@ -51,7 +49,7 @@ function PsychStep({ onDone }: { onDone: () => void }) {
 
   useEffect(() => {
     api.onboardingQuestions()
-      .then((d: { questions: PsychQuestion[] }) => { setQuestions(d.questions); startTime.current = Date.now() })
+      .then(d => { setQuestions(d.questions); startTime.current = Date.now() })
       .catch(() => setError('Failed to load questions'))
       .finally(() => setLoading(false))
   }, [])
