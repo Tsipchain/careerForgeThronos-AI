@@ -168,6 +168,56 @@ CREATE TABLE IF NOT EXISTS candidate_visibility (
     keywords_json TEXT,
     updated_at INTEGER NOT NULL
 );
+
+-- Identity verification sessions (tri-channel: agent → AI → manager)
+CREATE TABLE IF NOT EXISTS verification_sessions (
+    id TEXT PRIMARY KEY,
+    sub TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    channel TEXT NOT NULL DEFAULT 'ai',
+    agent_sub TEXT,
+    fraud_score REAL,
+    fraud_flags_json TEXT,
+    doc_front_b64 TEXT,
+    doc_back_b64 TEXT,
+    video_b64 TEXT,
+    video_duration_s REAL,
+    manager_decision TEXT,
+    manager_note TEXT,
+    manager_sub TEXT,
+    decided_at INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    FOREIGN KEY (sub) REFERENCES users(sub) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS vsess_sub_idx ON verification_sessions(sub, created_at DESC);
+CREATE INDEX IF NOT EXISTS vsess_status_idx ON verification_sessions(status);
+
+-- Anti-bot psychology test results
+CREATE TABLE IF NOT EXISTS psychology_tests (
+    id TEXT PRIMARY KEY,
+    sub TEXT NOT NULL,
+    answers_json TEXT NOT NULL,
+    score INTEGER NOT NULL DEFAULT 0,
+    flags_json TEXT,
+    passed INTEGER NOT NULL DEFAULT 0,
+    duration_ms INTEGER,
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY (sub) REFERENCES users(sub) ON DELETE CASCADE
+);
+
+-- Job-search guarantee tracking
+CREATE TABLE IF NOT EXISTS guarantee_requests (
+    id TEXT PRIMARY KEY,
+    sub TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    credits_refunded INTEGER DEFAULT 0,
+    reason TEXT,
+    reviewed_by TEXT,
+    created_at INTEGER NOT NULL,
+    resolved_at INTEGER
+);
 """
 
 
@@ -604,6 +654,7 @@ def delete_user_data(sub: str) -> Dict[str, Any]:
         tables = [
             'cv_analyses', 'candidate_visibility', 'profiles', 'jobs',
             'kits', 'artifacts', 'applications', 'credit_ledger',
+            'verification_sessions', 'psychology_tests',
         ]
         deleted: Dict[str, int] = {}
         for tbl in tables:
@@ -618,3 +669,173 @@ def delete_user_data(sub: str) -> Dict[str, Any]:
             "UPDATE users SET email='[deleted]@deleted' WHERE sub=?", (sub,)
         )
     return {'deleted_rows': deleted}
+
+
+# ---------------------------------------------------------------------------
+# Verification sessions
+# ---------------------------------------------------------------------------
+
+def create_verification_session(
+    session_id: str, sub: str, channel: str,
+    doc_front_b64: Optional[str] = None,
+    doc_back_b64: Optional[str] = None,
+    video_b64: Optional[str] = None,
+    video_duration_s: Optional[float] = None,
+) -> Dict[str, Any]:
+    now = int(time.time())
+    with _conn() as c:
+        c.execute(
+            '''INSERT INTO verification_sessions
+               (id, sub, status, channel, doc_front_b64, doc_back_b64,
+                video_b64, video_duration_s, created_at, updated_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?)''',
+            (session_id, sub, 'pending', channel,
+             doc_front_b64, doc_back_b64, video_b64, video_duration_s, now, now)
+        )
+    return {'session_id': session_id, 'status': 'pending', 'created_at': _iso(now)}
+
+
+def update_verification_session(session_id: str, **kwargs: Any) -> None:
+    now = int(time.time())
+    allowed = {
+        'status', 'channel', 'agent_sub', 'fraud_score', 'fraud_flags_json',
+        'manager_decision', 'manager_note', 'manager_sub', 'decided_at',
+    }
+    sets = ', '.join(f'{k}=?' for k in kwargs if k in allowed)
+    vals = [v for k, v in kwargs.items() if k in allowed]
+    if not sets:
+        return
+    vals += [now, session_id]
+    with _conn() as c:
+        c.execute(f'UPDATE verification_sessions SET {sets}, updated_at=? WHERE id=?', vals)
+
+
+def get_verification_session(session_id: str) -> Optional[Dict[str, Any]]:
+    with _conn() as c:
+        row = c.execute(
+            'SELECT id, sub, status, channel, agent_sub, fraud_score, fraud_flags_json, '
+            'video_duration_s, manager_decision, manager_note, created_at, updated_at '
+            'FROM verification_sessions WHERE id=?', (session_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def get_user_verification_session(sub: str) -> Optional[Dict[str, Any]]:
+    with _conn() as c:
+        row = c.execute(
+            'SELECT id, sub, status, channel, fraud_score, manager_decision, created_at '
+            'FROM verification_sessions WHERE sub=? ORDER BY created_at DESC LIMIT 1', (sub,)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def list_pending_verifications(limit: int = 50) -> List[Dict[str, Any]]:
+    with _conn() as c:
+        rows = c.execute(
+            '''SELECT vs.id, vs.sub, vs.status, vs.channel, vs.fraud_score,
+                      vs.video_duration_s, vs.created_at, u.email
+               FROM verification_sessions vs
+               JOIN users u ON u.sub = vs.sub
+               WHERE vs.status IN ('pending','ai_review','manager_review')
+               ORDER BY vs.created_at ASC
+               LIMIT ?''', (limit,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_session_doc(session_id: str, doc_type: str) -> Optional[str]:
+    """Return base64-encoded document — only for internal/manager use."""
+    col = 'doc_front_b64' if doc_type == 'front' else ('doc_back_b64' if doc_type == 'back' else 'video_b64')
+    with _conn() as c:
+        row = c.execute(f'SELECT {col} FROM verification_sessions WHERE id=?', (session_id,)).fetchone()
+        return row[0] if row else None
+
+
+# ---------------------------------------------------------------------------
+# Psychology tests
+# ---------------------------------------------------------------------------
+
+def save_psychology_test(
+    test_id: str, sub: str, answers: List[Dict],
+    score: int, flags: List[str], passed: bool, duration_ms: int,
+) -> None:
+    now = int(time.time())
+    with _conn() as c:
+        c.execute(
+            '''INSERT OR REPLACE INTO psychology_tests
+               (id, sub, answers_json, score, flags_json, passed, duration_ms, created_at)
+               VALUES (?,?,?,?,?,?,?,?)''',
+            (test_id, sub,
+             json.dumps(answers, ensure_ascii=False),
+             score,
+             json.dumps(flags, ensure_ascii=False),
+             1 if passed else 0, duration_ms, now)
+        )
+
+
+def get_psychology_test(sub: str) -> Optional[Dict[str, Any]]:
+    with _conn() as c:
+        row = c.execute(
+            'SELECT id, score, passed, flags_json, duration_ms, created_at '
+            'FROM psychology_tests WHERE sub=? ORDER BY created_at DESC LIMIT 1',
+            (sub,)
+        ).fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        d['flags'] = json.loads(d.pop('flags_json') or '[]')
+        return d
+
+
+# ---------------------------------------------------------------------------
+# Guarantee requests
+# ---------------------------------------------------------------------------
+
+def create_guarantee_request(req_id: str, sub: str, reason: str) -> Dict[str, Any]:
+    now = int(time.time())
+    with _conn() as c:
+        # One active request per user
+        existing = c.execute(
+            "SELECT id FROM guarantee_requests WHERE sub=? AND status='pending'", (sub,)
+        ).fetchone()
+        if existing:
+            return {'error': 'already_pending', 'request_id': existing['id']}
+        c.execute(
+            '''INSERT INTO guarantee_requests (id, sub, status, reason, created_at)
+               VALUES (?,?,?,?,?)''',
+            (req_id, sub, 'pending', reason, now)
+        )
+    return {'request_id': req_id, 'status': 'pending'}
+
+
+def resolve_guarantee_request(req_id: str, credits_refunded: int, reviewed_by: str) -> None:
+    now = int(time.time())
+    with _conn() as c:
+        c.execute(
+            '''UPDATE guarantee_requests
+               SET status='resolved', credits_refunded=?, reviewed_by=?, resolved_at=?
+               WHERE id=?''',
+            (credits_refunded, reviewed_by, now, req_id)
+        )
+
+
+def get_user_guarantee_status(sub: str) -> Dict[str, Any]:
+    now = int(time.time())
+    with _conn() as c:
+        # Kits generated (active search indicator)
+        kit_count = c.execute('SELECT COUNT(*) FROM kits WHERE sub=?', (sub,)).fetchone()[0]
+        # Days since first kit
+        first_kit = c.execute('SELECT MIN(created_at) FROM kits WHERE sub=?', (sub,)).fetchone()[0]
+        days_active = int((now - first_kit) / 86400) if first_kit else 0
+        # Pending request
+        req = c.execute(
+            "SELECT id, status, credits_refunded FROM guarantee_requests WHERE sub=? ORDER BY created_at DESC LIMIT 1",
+            (sub,)
+        ).fetchone()
+    eligible = kit_count >= 1 and days_active >= 7
+    return {
+        'kit_count': kit_count,
+        'days_active': days_active,
+        'eligible_for_refund': eligible,
+        'existing_request': dict(req) if req else None,
+    }

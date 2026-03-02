@@ -19,6 +19,10 @@ from .routes.kyc import bp as kyc_bp
 from .routes.n8n import bp as n8n_bp
 from .routes.cv import bp as cv_bp
 from .routes.candidates import bp as candidates_bp
+from .routes.verify_session import bp as verify_bp
+from .routes.manager import bp as manager_bp
+from .routes.psychology import bp as psychology_bp
+from .routes.guarantee import bp as guarantee_bp
 from .db.store import init_db
 
 
@@ -60,5 +64,9 @@ def create_app() -> Flask:
     app.register_blueprint(n8n_bp)
     app.register_blueprint(cv_bp)
     app.register_blueprint(candidates_bp)
+    app.register_blueprint(verify_bp)
+    app.register_blueprint(manager_bp)
+    app.register_blueprint(psychology_bp)
+    app.register_blueprint(guarantee_bp)
 
     return app

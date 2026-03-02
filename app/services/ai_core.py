@@ -326,12 +326,49 @@ def parse_job(raw_text: str) -> Dict:
         if kw.lower() in raw_text.lower():
             soft_kws.append(kw)
 
+    text_lower = raw_text.lower()
+
+    # --- Work mode ---
+    if any(k in text_lower for k in ['fully remote', '100% remote', 'fully-remote', 'work from anywhere', 'remote only', 'remote-first']):
+        work_mode = 'remote'
+    elif any(k in text_lower for k in ['hybrid', 'part remote', 'flexible location', 'days in office', 'days a week in']):
+        work_mode = 'hybrid'
+    elif any(k in text_lower for k in ['on-site', 'onsite', 'in-office', 'on site', 'office based', 'in person']):
+        work_mode = 'on_site'
+    elif 'remote' in text_lower:
+        work_mode = 'remote'
+    else:
+        work_mode = 'unspecified'
+
+    # --- Contract type ---
+    if any(k in text_lower for k in ['b2b', 'business to business', 'via your company', 'own company', 'ltd contract', 'self-employed invoice', 'faktura']):
+        contract_type = 'b2b'
+    elif any(k in text_lower for k in ['freelance', 'freelancer', 'independent contractor', '1099', 'contract position', 'contractor role']):
+        contract_type = 'freelance'
+    elif any(k in text_lower for k in ['b2c', 'business to consumer', 'end consumer', 'retail client']):
+        contract_type = 'b2c'
+    elif any(k in text_lower for k in ['permanent', 'full-time employee', 'employment contract', 'payroll', 'salaried']):
+        contract_type = 'employment'
+    elif any(k in text_lower for k in ['part-time', 'part time']):
+        contract_type = 'part_time'
+    elif any(k in text_lower for k in ['internship', 'intern', 'stage', 'prakti']):
+        contract_type = 'internship'
+    else:
+        contract_type = 'employment'
+
+    # --- Country ---
+    from .country_context import detect_country
+    detected_country = detect_country(raw_text)
+
     return {
         'company': company,
         'title': title,
         'location': '',
         'employment_type': 'full-time',
         'seniority': '',
+        'work_mode': work_mode,
+        'contract_type': contract_type,
+        'detected_country': detected_country,
         'responsibilities': [],
         'requirements_must': hard_kws[:5],
         'requirements_nice': [],

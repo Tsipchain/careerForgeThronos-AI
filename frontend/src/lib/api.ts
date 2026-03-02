@@ -90,10 +90,61 @@ export const api = {
   ingestRemoteOkJob: (slug: string) =>
     req<{ job_id: string; parsed: unknown }>('POST', '/v1/job/remoteok/ingest', { slug }),
 
+  // Country context
+  getCountryContext: (country: string) =>
+    req<CountryContext>('GET', `/v1/job/country-context?country=${encodeURIComponent(country)}`),
+  listCountries: () =>
+    req<{ countries: CountrySummary[] }>('GET', '/v1/job/countries'),
+
   // Interview
   prepareInterview: (job_id: string, company_context?: unknown) =>
     req<{ interview_pack: unknown; credits_charged: number }>(
       'POST', '/v1/interview/prepare', { job_id, company_context: company_context || {} }
+    ),
+
+  // Identity Verification
+  verifyStart: () =>
+    req<{ session_id: string; channel: string; status: string; message: string }>('POST', '/v1/verify/start'),
+  verifyUpload: (body: {
+    session_id: string
+    doc_front: string
+    doc_back?: string
+    video?: string
+    video_duration_s?: number
+  }) => req<{ session_id: string; status: string; fraud_score?: number; flags?: string[]; message?: string }>(
+    'POST', '/v1/verify/upload', body
+  ),
+  verifyStatus: () =>
+    req<{ status: string; session_id?: string; fraud_score?: number; channel?: string }>('GET', '/v1/verify/status'),
+
+  // Manager portal
+  managerPending: () =>
+    req<{ sessions: unknown[]; count: number }>('GET', '/v1/manager/pending'),
+  managerSessionDetail: (sessionId: string) =>
+    req<unknown>('GET', `/v1/manager/session/${sessionId}`),
+  managerReview: (sessionId: string, decision: 'approved' | 'rejected', note?: string) =>
+    req<{ session_id: string; decision: string; message: string }>(
+      'POST', `/v1/manager/session/${sessionId}/review`, { decision, note }
+    ),
+
+  // Psychology / Onboarding test
+  onboardingQuestions: () =>
+    req<{ questions: unknown[]; pass_threshold: number }>('GET', '/v1/onboarding/test/questions'),
+  onboardingSubmit: (answers: { question_id: string; value: string }[], duration_ms: number) =>
+    req<{ test_id: string; score: number; passed: boolean; message: string }>(
+      'POST', '/v1/onboarding/test/submit', { answers, duration_ms }
+    ),
+  onboardingStatus: () =>
+    req<{ passed: boolean; score?: number; message: string }>('GET', '/v1/onboarding/test/status'),
+
+  // Guarantee / 7-day promise
+  guaranteeStatus: () =>
+    req<{ kit_count: number; days_active: number; eligible_for_refund: boolean; existing_request: unknown }>(
+      'GET', '/v1/guarantee/status'
+    ),
+  guaranteeRequest: (reason?: string) =>
+    req<{ request_id: string; status: string; message: string }>(
+      'POST', '/v1/guarantee/request', { reason }
     ),
 }
 
@@ -129,4 +180,37 @@ export interface RemoteOkJob {
   url: string
   posted_at: string
   logo: string
+}
+
+export interface CountrySummary {
+  code: string
+  name: string
+  flag: string
+  region: string
+  cost_of_living_index: number
+  income_tax_top_pct: number
+  digital_nomad_visa: boolean
+}
+
+export interface CountryContext {
+  name: string
+  flag: string
+  region: string
+  currency: string
+  official_languages: string[]
+  timezone: string
+  cost_of_living_index: number
+  avg_tech_salary_usd: { junior: string; mid: string; senior: string }
+  income_tax_top_pct: number
+  social_security_employer_pct: number
+  social_security_employee_pct: number
+  healthcare: string
+  contract_types_common: string[]
+  b2b_contractor_notes: string
+  digital_nomad_visa: boolean
+  eu_citizen_right_to_work: boolean
+  non_eu_work_permit: string
+  remote_work_culture: string
+  key_facts: string[]
+  quality_of_life: string
 }

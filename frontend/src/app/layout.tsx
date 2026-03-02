@@ -4,7 +4,12 @@ import { LanguageProvider } from '@/lib/i18n'
 
 export const metadata: Metadata = {
   title: 'CareerForge — AI-Powered Career Tools',
-  description: 'Generate tailored CVs, cover letters, and interview prep with AI.',
+  description: 'Generate tailored CVs, cover letters, and interview prep with AI. Powered by Thronos blockchain.',
+  icons: {
+    icon: '/favicon.svg',
+    shortcut: '/favicon.svg',
+    apple: '/favicon.svg',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

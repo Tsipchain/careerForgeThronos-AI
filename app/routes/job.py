@@ -1,8 +1,10 @@
 """
-POST /v1/job/ingest          — parse/normalize a job description
-GET  /v1/job/<job_id>        — retrieve an ingested job
-GET  /v1/job/remoteok        — fetch live remote jobs from RemoteOK (free, no credits)
-POST /v1/job/remoteok/ingest — ingest a RemoteOK listing directly by slug/id
+POST /v1/job/ingest              — parse/normalize a job description
+GET  /v1/job/<job_id>            — retrieve an ingested job
+GET  /v1/job/remoteok            — fetch live remote jobs from RemoteOK (free, no credits)
+POST /v1/job/remoteok/ingest     — ingest a RemoteOK listing by slug
+GET  /v1/job/country-context     — full context for a country (?country=GR|Germany|…)
+GET  /v1/job/countries           — list all supported countries (compact)
 """
 import hashlib
 from flask import Blueprint, jsonify, request
@@ -11,6 +13,7 @@ import requests as http_requests
 from ..utils.auth import require_auth
 from ..db.store import upsert_user, upsert_job, get_job, write_audit
 from ..services.ai_core import parse_job
+from ..services.country_context import country_summary, list_countries
 
 bp = Blueprint('job', __name__, url_prefix='/v1/job')
 
@@ -191,6 +194,33 @@ def ingest():
         'job_fingerprint_sha256': job_fp,
         'parsed': parsed,
     }), 200
+
+
+# ---------------------------------------------------------------------------
+# Country context (free — no credits)
+# ---------------------------------------------------------------------------
+
+@bp.get('/countries')
+@require_auth(['careerforge:read'])
+def countries():
+    """List all supported countries with compact metadata."""
+    return jsonify({'countries': list_countries()}), 200
+
+
+@bp.get('/country-context')
+@require_auth(['careerforge:read'])
+def country_context():
+    """
+    Full living/working/tax context for a country.
+    Query param: ?country=GR  (ISO code or English name)
+    """
+    code = request.args.get('country', '').strip()
+    if not code:
+        return jsonify({'error': {'code': 'invalid_request', 'message': "'country' param required (e.g. GR, Germany, US)"}}), 400
+    ctx = country_summary(code)
+    if 'error' in ctx:
+        return jsonify({'error': {'code': 'not_found', 'message': ctx['error'], 'available': ctx.get('available', [])}}), 404
+    return jsonify(ctx), 200
 
 
 @bp.get('/<job_id>')
