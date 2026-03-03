@@ -182,20 +182,36 @@ export default function ManagerPortalPage() {
                 </div>
                 <p className="text-sm text-gray-400">{selected.user_email}</p>
                 <p className="text-xs text-gray-600 mt-1">Submitted {formatDate(selected.created_at)} · Channel: {selected.channel}</p>
+                {/* Video call link */}
+                <a
+                  href={`${process.env.NEXT_PUBLIC_JITSI_BASE || 'https://meet.jit.si'}/cf-verify-${selected.id}`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 mt-2 text-xs text-indigo-400 hover:text-indigo-300 border border-indigo-500/30 hover:border-indigo-400/50 px-3 py-1.5 rounded-lg transition-all">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.069A1 1 0 0121 8.867v6.266a1 1 0 01-1.447.902L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  Join Video Call
+                </a>
               </div>
 
               {/* Fraud score */}
               <div className="bg-surface-800 rounded-2xl border border-white/[0.06] p-5 mb-5">
-                <h3 className="text-sm font-semibold text-gray-300 mb-3">AI Fraud Analysis</h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-gray-300">AI Risk Hint</h3>
+                  <span className="text-xs text-gray-600">For reference only — you make the final decision</span>
+                </div>
                 <div className="flex items-center gap-4 mb-3">
                   <div className="text-center">
                     <div className={`text-3xl font-bold ${
-                      (selected.fraud_score || 0) < 30 ? 'text-emerald-400' :
-                      (selected.fraud_score || 0) < 65 ? 'text-yellow-400' : 'text-red-400'
+                      (selected.fraud_score || 0) < 26 ? 'text-emerald-400' :
+                      (selected.fraud_score || 0) < 56 ? 'text-yellow-400' : 'text-red-400'
                     }`}>
                       {selected.fraud_score?.toFixed(0) ?? '—'}
                     </div>
-                    <div className="text-xs text-gray-500">Fraud Score</div>
+                    <div className="text-xs text-gray-500">
+                      {(selected.fraud_score || 0) < 26 ? 'Low risk' :
+                       (selected.fraud_score || 0) < 56 ? 'Medium risk' : 'High risk'}
+                    </div>
                   </div>
                   <div className="flex-1">
                     {(selected.fraud_flags || []).length > 0 ? (
