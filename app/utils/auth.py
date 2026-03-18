@@ -12,8 +12,16 @@ def _decode_token(token: str) -> Dict[str, Any]:
     iss = os.getenv('JWT_ISSUER') or None
     opts = {'require': ['exp', 'sub']}
 
+    _HS256_MIN_SECRET_LENGTH = 32  # NIST recommends >= 256-bit keys for HMAC
+
     secret = os.getenv('JWT_SECRET_KEY', '')
     if secret:
+        if len(secret) < _HS256_MIN_SECRET_LENGTH:
+            raise ValueError(
+                f'JWT_SECRET_KEY is too short ({len(secret)} chars). '
+                f'HS256 requires at least {_HS256_MIN_SECRET_LENGTH} characters '
+                f'to meet minimum security requirements.'
+            )
         try:
             return jwt.decode(token, secret, algorithms=['HS256'],
                               audience=aud, issuer=iss, options=opts)
