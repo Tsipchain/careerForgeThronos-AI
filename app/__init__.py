@@ -2,6 +2,7 @@ from flask import Flask
 from flask_cors import CORS
 from dotenv import load_dotenv
 import os
+import sys
 
 from .routes.health import bp as health_bp
 from .routes.auth import bp as auth_bp
@@ -26,23 +27,40 @@ from .routes.guarantee import bp as guarantee_bp
 from .db.store import init_db
 
 
+# SECURITY: Fail-fast on missing critical secrets — Phase 0 hardening
+_REQUIRED_SECRETS = [
+    'JWT_SECRET_KEY',
+    'STRIPE_SECRET_KEY',
+    'STRIPE_WEBHOOK_SECRET',
+    'ATTESTOR_PRIVKEY_HEX',
+]
+
+
+def _check_required_secrets() -> None:
+    """Abort startup if any critical secret is missing from the environment."""
+    missing = [name for name in _REQUIRED_SECRETS if not os.getenv(name, '').strip()]
+    if missing:
+        print(
+            f"FATAL: missing required secret(s): {', '.join(missing)}. "
+            "Set them as environment variables before starting the app.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
 def create_app() -> Flask:
     load_dotenv()
+
+    # SECURITY: Fail-fast on missing critical secrets — Phase 0 hardening
+    _check_required_secrets()
 
     app = Flask(__name__)
     app.config['APP_ENV'] = os.getenv('APP_ENV', 'development')
     app.config['DATABASE_URL'] = os.getenv('DATABASE_URL', 'sqlite:///careerforge.db')
 
-    # CORS — allow the frontend origin (set FRONTEND_URL in env, or use defaults)
-    default_origins = [
-        'https://careerforge-ai.thronoschain.org',
-        'https://careerforgethronos-ai.up.railway.app',
-        'http://localhost:3000',
-        'http://localhost:8080',
-    ]
-    raw = os.getenv('FRONTEND_URL', '')
-    cors_origins = [o.strip() for o in raw.split(',') if o.strip()] if raw.strip() else default_origins
-    CORS(app, origins=cors_origins, supports_credentials=True,
+    # SECURITY: CORS restricted to known origins — Phase 0 hardening
+    CORS_ORIGINS = os.getenv("CORS_ORIGINS", "https://thronoschain.org,https://careerforge-ai.thronoschain.org,https://api.thronoschain.org").split(",")
+    CORS(app, origins=CORS_ORIGINS, supports_credentials=True,
          allow_headers=['Content-Type', 'Authorization'],
          methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 
